@@ -16,8 +16,9 @@ import (
 
 	"github.com/benbjohnson/litestream"
 	"github.com/benbjohnson/litestream/s3"
-	_ "github.com/mattn/go-sqlite3"
 	"gopkg.in/yaml.v2"
+	_ "modernc.org/sqlite"
+	// _ "github.com/mattn/go-sqlite3"
 )
 
 // Build information.

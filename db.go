@@ -375,12 +375,32 @@ func (db *DB) init() (err error) {
 	db.dirmode = fi.Mode()
 
 	dsn := db.path
-	dsn += fmt.Sprintf("?_busy_timeout=%d", BusyTimeout.Milliseconds())
+
+	const driver = "sqlite"
+	if driver == "sqlite3" {
+		dsn += fmt.Sprintf("?_busy_timeout=%d", BusyTimeout.Milliseconds())
+	}
 
 	// Connect to SQLite database & enable WAL.
-	if db.db, err = sql.Open("sqlite3", dsn); err != nil {
+	if db.db, err = sql.Open(driver, dsn); err != nil {
 		return err
-	} else if _, err := db.db.Exec(`PRAGMA journal_mode = wal;`); err != nil {
+	}
+
+	if driver == "sqlite" {
+		// go-sqlite3 does these implicitly or via
+		// the busy_timeout param above
+		for _, stmt := range []string{
+			"PRAGMA busy_timeout = 1000;",
+			"PRAGMA locking_mode = NORMAL;",
+			"PRAGMA synchronous = NORMAL;",
+		} {
+			if _, err := db.db.Exec(stmt); err != nil {
+				return fmt.Errorf("executing init statement %q: %w", stmt, err)
+			}
+		}
+	}
+
+	if _, err := db.db.Exec(`PRAGMA journal_mode = wal;`); err != nil {
 		return fmt.Errorf("enable wal: %w", err)
 	}
 
@@ -1556,7 +1576,7 @@ func (db *DB) restoreWAL(ctx context.Context, r Replica, generation string, inde
 	}
 
 	// Open SQLite database and force a truncating checkpoint.
-	d, err := sql.Open("sqlite3", dbPath)
+	d, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return err
 	}
